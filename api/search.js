@@ -49,7 +49,7 @@ Return ONLY a valid JSON object, no markdown, no explanation, no code blocks:
 If no listings found at the exact address, include nearby ones on the same street and mention it in notes. Include real URLs and photo URLs when found. Return only JSON.`;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
