@@ -16,11 +16,15 @@ export default async function handler(req, res) {
 Search Otodom OLX Gratka for sales and rentals. Search Airbnb Booking.com for short stays. Return only JSON.`;
 
   const models = [
+    'qwen/qwen3-235b-a22b:free',
     'meta-llama/llama-3.3-70b-instruct:free',
-    'qwen/qwen3-coder:free',
-    'openai/gpt-oss-120b:free',
-    'google/gemma-3-12b-it:free'
+    'deepseek/deepseek-chat:free',
+    'microsoft/mai-ds-r1:free',
+    'amazon/nova-2-lite-v1:free',
+    'nousresearch/hermes-3-llama-3.1-405b:free'
   ];
+
+  let lastError = 'All free models unavailable. Try again in a few minutes.';
 
   for (const model of models) {
     try {
@@ -41,23 +45,28 @@ Search Otodom OLX Gratka for sales and rentals. Search Airbnb Booking.com for sh
       });
 
       const data = await response.json();
-      if (!response.ok) continue;
+
+      if (!response.ok) {
+        lastError = data?.error?.message || `Model ${model} failed`;
+        continue;
+      }
 
       const text = data.choices?.[0]?.message?.content || '';
-      if (!text) continue;
+      if (!text) { lastError = `No text from ${model}`; continue; }
 
       const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const start = clean.indexOf('{');
       const end = clean.lastIndexOf('}');
-      if (start === -1) continue;
+      if (start === -1) { lastError = `No JSON from ${model}`; continue; }
 
       const parsed = JSON.parse(clean.slice(start, end + 1));
       return res.status(200).json(parsed);
 
     } catch (err) {
+      lastError = err.message;
       continue;
     }
   }
 
-  return res.status(500).json({ error: 'All free models are currently unavailable. Please try again in a moment.' });
+  return res.status(500).json({ error: lastError });
 }
