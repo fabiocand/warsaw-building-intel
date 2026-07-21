@@ -8,39 +8,39 @@ export default async function handler(req, res) {
   const { address } = req.body || {};
   if (!address) return res.status(400).json({ error: 'Address required' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set in Vercel environment variables.' });
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set in Vercel environment variables.' });
 
   const prompt = `Search the web for real estate listings at "${address}" Warsaw Poland. Return only JSON, no markdown:
 {"building_info":{"district":"","year":"","floors":"","style":"","total_units":"","developer":"","notes":""},"sale_listings":[{"title":"","size":"","rooms":"","floor":"","price":"","source":"","url":"","photos":[]}],"long_term_rentals":[{"title":"","size":"","rooms":"","floor":"","price":"","source":"","url":"","photos":[]}],"short_term_rentals":[{"title":"","size":"","rating":0,"reviews":0,"price":"","source":"","url":"","photos":[]}],"ownership":[{"name":"","share":"","since":"","type":""}]}
 Search Otodom OLX Gratka for sales and rentals. Search Airbnb Booking.com for short stays. Return only JSON.`;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
-
-    const response = await fetch(url, {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://warsaw-building-intel.vercel.app',
+        'X-Title': 'Warsaw Building Intelligence'
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2000 }
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 2000
       })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      const msg = data?.error?.message || `Gemini API error ${response.status}`;
+      const msg = data?.error?.message || `OpenRouter API error ${response.status}`;
       return res.status(response.status).json({ error: msg });
     }
 
-    const text = (data.candidates?.[0]?.content?.parts || [])
-      .filter(p => p.text)
-      .map(p => p.text)
-      .join('');
-
-    if (!text) return res.status(500).json({ error: 'No response from Gemini' });
+    const text = data.choices?.[0]?.message?.content || '';
+    if (!text) return res.status(500).json({ error: 'No response from model' });
 
     const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const start = clean.indexOf('{');
