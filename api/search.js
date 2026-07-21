@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (!address) return res.status(400).json({ error: 'Address required' });
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY environment variable is not set. Add it in Vercel → Settings → Environment Variables.' });
+  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY environment variable is not set.' });
 
   const prompt = `You are a Warsaw real estate intelligence assistant. Search the web for information about this address: "${address}", Warsaw, Poland.
 
@@ -49,7 +49,7 @@ Return ONLY a valid JSON object, no markdown, no explanation, no code blocks:
 If no listings found at the exact address, include nearby ones on the same street and mention it in notes. Include real URLs and photo URLs when found. Return only JSON.`;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
