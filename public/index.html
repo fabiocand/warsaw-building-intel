@@ -82,13 +82,20 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
 .lbbtn:hover{background:rgba(255,255,255,.22)}
 .lbx{position:absolute;top:18px;right:22px;background:none;border:none;color:rgba(255,255,255,.7);font-size:28px;cursor:pointer}
 .lbc{color:rgba(255,255,255,.5);font-size:13px;min-width:54px;text-align:center}
+.icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;flex-shrink:0}
+.icon-sale{background:var(--ac-bg);color:var(--ac)}
+.icon-lt{background:var(--gr-bg);color:var(--gr)}
+.icon-st{background:var(--am-bg);color:var(--am)}
+.icon-bldg{background:var(--s2);color:var(--t2)}
+.icon-own{background:var(--s2);color:var(--t2)}
+.icon-off{background:var(--s2);color:var(--t2)}
 @media(max-width:520px){.igrid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hdr">
-    <h1>🏙 Warsaw Building Intelligence</h1>
+    <h1>Warsaw Building Intelligence</h1>
     <p>Search any Warsaw address — find apartments for sale, long-term rent, short-term rent, and official city records.</p>
   </div>
 
@@ -131,30 +138,47 @@ document.getElementById('lb').addEventListener('click',e=>{if(e.target===documen
 document.getElementById('addr').addEventListener('keydown',e=>{if(e.key==='Enter')go()});
 function qs(a){document.getElementById('addr').value=a;go()}
 
+// SVG icons — no emojis
+const IC = {
+  sale: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+  lt:   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  st:   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  bldg: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="22" x2="9" y2="2"/><path d="M8 7h1m2 0h1m-1 4h1m-4 0h1m0 4h1m2 0h1"/></svg>`,
+  own:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  off:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+  map:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>`,
+  doc:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  ext:  `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+  warn: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+};
+
 function thumbs(photos){
   if(!photos||!photos.length)return'';
   const s=JSON.stringify(photos).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   return'<div class="pstrip">'+photos.map((p,i)=>`<img src="${p}" loading="lazy" alt="" onclick="olb(JSON.parse('${s}'),${i})" onerror="this.style.display='none'">`).join('')+'</div>';
 }
 
-function listings(items,bc,pn,empty){
+function listings(items,bc,iconKey,pn,empty){
   if(!items||!items.length)return`<div class="empty">${empty}</div>`;
   return items.map(x=>`<div class="listing"><div class="ltop"><div style="flex:1;min-width:0">
     <div class="ltitle">${x.title||'—'}</div>
     <div class="lmeta">${[x.size,x.rooms,x.floor,x.rating?'★ '+x.rating+(x.reviews?' ('+x.reviews+')':''):''].filter(Boolean).join(' · ')}</div>
     <div class="lprice">${x.price||'—'} <span style="font-size:11px;font-weight:400;color:var(--t3)">${pn}</span></div>
-    ${x.url?`<a class="llink" href="${x.url}" target="_blank" rel="noopener">${x.source} ↗</a>`:`<span style="font-size:12px;color:var(--t3)">${x.source||''}</span>`}
+    ${x.url?`<a class="llink" href="${x.url}" target="_blank" rel="noopener">${x.source} ${IC.ext}</a>`:`<span style="font-size:12px;color:var(--t3)">${x.source||''}</span>`}
   </div><span class="badge ${bc}">${x.source||''}</span></div>${thumbs(x.photos)}</div>`).join('');
 }
 
 const LINKS=[
-  {e:'🗺',l:'Geoportal Warszawa',d:'Cadastral parcels, zoning plans, aerial view',u:'https://geoportal.um.warszawa.pl/mapaWarszawy/'},
-  {e:'📜',l:'Elektroniczne Księgi Wieczyste (EKW)',d:'Land register — legal owners & mortgages',u:'https://ekw.ms.gov.pl/eukw_ogol/menu.do'},
-  {e:'🏛',l:'Miejski Informator Multimedialny (MIM)',d:'City portal — building data, permits, address registry',u:'https://mim.um.warszawa.pl/mapa/'},
-  {e:'🔨',l:'GUNB — Building Supervision',d:'Construction permits, occupancy certificates',u:'https://www.gunb.gov.pl/'},
-  {e:'📋',l:'BIP Warszawa',d:'Public bulletin — planning decisions',u:'https://bip.warszawa.pl/'},
+  {ic:IC.map, l:'Geoportal Warszawa',          d:'Cadastral parcels, zoning plans, aerial view',          u:'https://geoportal.um.warszawa.pl/mapaWarszawy/'},
+  {ic:IC.doc, l:'Elektroniczne Księgi Wieczyste (EKW)', d:'Land register — legal owners & mortgages',     u:'https://ekw.ms.gov.pl/eukw_ogol/menu.do'},
+  {ic:IC.bldg,l:'Miejski Informator Multimedialny (MIM)',d:'City portal — building data, permits, address registry', u:'https://mim.um.warszawa.pl/mapa/'},
+  {ic:IC.doc, l:'GUNB — Building Supervision', d:'Construction permits, occupancy certificates',           u:'https://www.gunb.gov.pl/'},
+  {ic:IC.doc, l:'BIP Warszawa',                d:'Public bulletin — planning decisions',                   u:'https://bip.warszawa.pl/'},
 ];
-const linksHtml=LINKS.map(l=>`<div class="lrow"><span style="font-size:18px;flex-shrink:0">${l.e}</span><div><a href="${l.u}" target="_blank" rel="noopener">${l.l} ↗</a><div class="ldesc">${l.d}</div></div></div>`).join('');
+const linksHtml=LINKS.map(l=>`<div class="lrow">
+  <span class="icon icon-off">${l.ic}</span>
+  <div><a href="${l.u}" target="_blank" rel="noopener">${l.l} ${IC.ext}</a><div class="ldesc">${l.d}</div></div>
+</div>`).join('');
 
 function render(d,addr){
   const b=d.building_info||{},sale=d.sale_listings||[],lt=d.long_term_rentals||[],st=d.short_term_rentals||[],own=d.ownership||[];
@@ -169,20 +193,43 @@ function render(d,addr){
       <div class="stat"><div class="stn" style="color:var(--gr)">${lt.length}</div><div class="stl">Long-term rent</div></div>
       <div class="stat"><div class="stn" style="color:var(--am)">${st.length}</div><div class="stl">Short-term rent</div></div>
     </div>
-    ${(b.style||b.floors||b.total_units||b.notes)?`<div class="card"><div class="ctitle">🏢 Building profile</div><div class="igrid">
-      ${b.style?`<div class="icell"><div class="lbl">Type</div>${b.style}</div>`:''}
-      ${b.year?`<div class="icell"><div class="lbl">Built</div>${b.year}</div>`:''}
-      ${b.floors?`<div class="icell"><div class="lbl">Floors</div>${b.floors}</div>`:''}
-      ${b.total_units?`<div class="icell"><div class="lbl">Units</div>${b.total_units}</div>`:''}
-      ${b.developer?`<div class="icell"><div class="lbl">Developer</div>${b.developer}</div>`:''}
-      ${b.notes?`<div class="icell" style="grid-column:1/-1"><div class="lbl">Notes</div>${b.notes}</div>`:''}
-    </div></div>`:''}
-    <div class="card"><div class="ctitle">🏷 For sale <span class="badge bb">${sale.length}</span></div>${listings(sale,'bb','','No active sale listings found.')}</div>
-    <div class="card"><div class="ctitle">🏠 Long-term rent <span class="badge bg">${lt.length}</span></div><div class="csub">Monthly leases · Otodom, OLX, Gratka</div>${listings(lt,'bg','/month','No long-term rental listings found.')}</div>
-    <div class="card"><div class="ctitle">📅 Short-term rent <span class="badge ba">${st.length}</span></div><div class="csub">Nightly · Airbnb, Booking.com, Trip.com</div>${listings(st,'ba','/night','No short-term rentals found.')}</div>
-    ${own.length?`<div class="card"><div class="ctitle">👤 Known ownership</div>${own.map(o=>`<div class="orow"><div class="oname">${o.name}</div><div class="odet">${[o.share&&'Share: '+o.share,o.since&&'Since '+o.since,o.type].filter(Boolean).join(' · ')}</div></div>`).join('')}</div>`:''}
-    <div class="card"><div class="ctitle">🏛 Official Warsaw sources</div><div class="csub">Verify ownership, permits and zoning directly</div>${linksHtml}</div>
-    <div class="notice">⚠ Results gathered from public web sources. Always verify on official portals before making decisions.</div>`;
+    ${(b.style||b.floors||b.total_units||b.notes)?`<div class="card">
+      <div class="ctitle"><span class="icon icon-bldg">${IC.bldg}</span> Building profile</div>
+      <div class="igrid">
+        ${b.style?`<div class="icell"><div class="lbl">Type</div>${b.style}</div>`:''}
+        ${b.year?`<div class="icell"><div class="lbl">Built</div>${b.year}</div>`:''}
+        ${b.floors?`<div class="icell"><div class="lbl">Floors</div>${b.floors}</div>`:''}
+        ${b.total_units?`<div class="icell"><div class="lbl">Units</div>${b.total_units}</div>`:''}
+        ${b.developer?`<div class="icell"><div class="lbl">Developer</div>${b.developer}</div>`:''}
+        ${b.notes?`<div class="icell" style="grid-column:1/-1"><div class="lbl">Notes</div>${b.notes}</div>`:''}
+      </div></div>`:''}
+    <div class="card">
+      <div class="ctitle"><span class="icon icon-sale">${IC.sale}</span> For sale <span class="badge bb">${sale.length}</span></div>
+      ${listings(sale,'bb','sale','','No active sale listings found.')}
+    </div>
+    <div class="card">
+      <div class="ctitle"><span class="icon icon-lt">${IC.lt}</span> Long-term rent <span class="badge bg">${lt.length}</span></div>
+      <div class="csub">Monthly leases · Otodom, OLX, Gratka</div>
+      ${listings(lt,'bg','lt','/month','No long-term rental listings found.')}
+    </div>
+    <div class="card">
+      <div class="ctitle"><span class="icon icon-st">${IC.st}</span> Short-term rent <span class="badge ba">${st.length}</span></div>
+      <div class="csub">Nightly · Airbnb, Booking.com, Trip.com</div>
+      ${listings(st,'ba','st','/night','No short-term rentals found.')}
+    </div>
+    ${own.length?`<div class="card">
+      <div class="ctitle"><span class="icon icon-own">${IC.own}</span> Known ownership</div>
+      ${own.map(o=>`<div class="orow"><div class="oname">${o.name}</div><div class="odet">${[o.share&&'Share: '+o.share,o.since&&'Since '+o.since,o.type].filter(Boolean).join(' · ')}</div></div>`).join('')}
+    </div>`:''}
+    <div class="card">
+      <div class="ctitle"><span class="icon icon-off">${IC.off}</span> Official Warsaw sources</div>
+      <div class="csub">Verify ownership, permits and zoning directly</div>
+      ${linksHtml}
+    </div>
+    <div class="notice" style="display:flex;align-items:flex-start;gap:8px">
+      <span style="flex-shrink:0;margin-top:1px;color:var(--am)">${IC.warn}</span>
+      Results gathered from public web sources. Always verify on official portals before making decisions.
+    </div>`;
 }
 
 async function go(){
@@ -197,7 +244,7 @@ async function go(){
     if(!r.ok)throw new Error(d.error||'Search failed');
     render(d,addr);
   }catch(e){
-    document.getElementById('out').innerHTML=`<div class="err"><strong>Search failed</strong>${e.message}</div><div class="card"><div class="ctitle">🏛 Search manually on official sources</div>${linksHtml}</div>`;
+    document.getElementById('out').innerHTML=`<div class="err"><strong>Search failed</strong>${e.message}</div><div class="card"><div class="ctitle"><span class="icon icon-off">${IC.off}</span> Search manually on official sources</div>${linksHtml}</div>`;
   }finally{btn.disabled=false}
 }
 </script>
