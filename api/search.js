@@ -8,6 +8,9 @@ export default async function handler(req, res) {
   const { address } = req.body || {};
   if (!address) return res.status(400).json({ error: 'Address required' });
 
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY environment variable is not set. Add it in Vercel → Settings → Environment Variables.' });
+
   const prompt = `You are a Warsaw real estate intelligence assistant. Search the web for information about this address: "${address}", Warsaw, Poland.
 
 Search for:
@@ -30,83 +33,45 @@ Return ONLY a valid JSON object, no markdown, no explanation, no code blocks:
     "notes": "avg price per m2, nearby landmarks, transport links, key facts"
   },
   "sale_listings": [
-    {
-      "title": "listing title",
-      "size": "e.g. 65 m²",
-      "rooms": "e.g. 3 rooms",
-      "floor": "e.g. 3rd floor",
-      "price": "price in PLN",
-      "source": "Otodom / Gratka / Adresowo / etc",
-      "url": "direct listing URL or null",
-      "photos": ["photo url 1", "photo url 2"]
-    }
+    { "title": "", "size": "", "rooms": "", "floor": "", "price": "", "source": "", "url": "", "photos": [] }
   ],
   "long_term_rentals": [
-    {
-      "title": "listing title",
-      "size": "e.g. 45 m²",
-      "rooms": "e.g. 2 rooms",
-      "floor": "e.g. 2nd floor",
-      "price": "monthly price in PLN",
-      "source": "OLX / Otodom / etc",
-      "url": "direct listing URL or null",
-      "photos": ["photo url 1"]
-    }
+    { "title": "", "size": "", "rooms": "", "floor": "", "price": "", "source": "", "url": "", "photos": [] }
   ],
   "short_term_rentals": [
-    {
-      "title": "listing title",
-      "size": "e.g. 35 m²",
-      "rating": 4.7,
-      "reviews": 42,
-      "price": "price per night in PLN or USD",
-      "source": "Booking.com / Airbnb / Trip.com / etc",
-      "url": "direct listing URL or null",
-      "photos": ["photo url 1"]
-    }
+    { "title": "", "size": "", "rating": 0, "reviews": 0, "price": "", "source": "", "url": "", "photos": [] }
   ],
   "ownership": [
-    {
-      "name": "owner name or company",
-      "share": "ownership share if known",
-      "since": "year if known",
-      "type": "Natural person / Legal entity"
-    }
+    { "name": "", "share": "", "since": "", "type": "" }
   ]
 }
 
-If no listings found at the exact address, include nearby ones on the same street and mention it in notes. Always include real URLs and photo URLs when found.`;
+If no listings found at the exact address, include nearby ones on the same street and mention it in notes. Include real URLs and photo URLs when found. Return only JSON.`;
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    const body = {
-      contents: [{ parts: [{ text: prompt }] }],
-      tools: [{ google_search: {} }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 4000,
-      }
-    };
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 4000 }
+      })
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      const msg = err.error?.message || `Gemini API error ${response.status}`;
+      const msg = data?.error?.message || `Gemini API error ${response.status}`;
       return res.status(response.status).json({ error: msg });
     }
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts
-      ?.filter(p => p.text)
-      ?.map(p => p.text)
-      ?.join('') || '';
+    const text = (data.candidates?.[0]?.content?.parts || [])
+      .filter(p => p.text)
+      .map(p => p.text)
+      .join('');
 
     if (!text) return res.status(500).json({ error: 'No response from Gemini' });
 
