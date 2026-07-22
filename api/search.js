@@ -145,12 +145,27 @@ function listings(items,bc,pn,empty){
   </div><span class="badge ${bc}">${x.source||''}</span></div>${thumbs(x.photos)}</div>`).join('');
 }
 
+function parsePriceNum(str){
+  if(!str) return null;
+  const m = String(str).match(/(\d[\d\s]{0,6})\s*zł/);
+  if(!m) return null;
+  const n = parseInt(m[1].replace(/\s/g,''),10);
+  return isNaN(n) ? null : n;
+}
+
+function avgPriceLabel(items){
+  const nums = (items||[]).map(x=>parsePriceNum(x.price)).filter(n=>n!==null);
+  if(!nums.length) return '';
+  const avg = Math.round(nums.reduce((a,b)=>a+b,0)/nums.length);
+  return ' · Avg ~' + avg.toLocaleString('pl-PL') + ' zł/night';
+}
+
 const LINKS=[
-  {l:'Geoportal Warszawa',                   d:'Cadastral parcels, zoning plans, aerial view',           u:'https://www.geoportal2.pl/pl/'},
-  {l:'Elektroniczne Księgi Wieczyste (EKW)', d:'Land register — legal owners & mortgages',               u:'https://ekw.ms.gov.pl/eukw_ogol/menu.do'},
-  {l:'Miejski Informator Multimedialny (MIM)',d:'City portal — building data, permits, address registry', u:'https://mim.um.warszawa.pl/'},
-  {l:'GUNB — Building Supervision',          d:'Construction permits, occupancy certificates',            u:'https://www.gunb.gov.pl/'},
-  {l:'BIP Warszawa',                         d:'Public bulletin — planning decisions',                    u:'https://bip.warszawa.pl/'},
+  {l:'Geoportal Warszawa',                    d:'Cadastral parcels, zoning plans, aerial view',              u:'https://www.geoportal2.pl/pl/'},
+  {l:'Mapa własności Warszawy (Ownership Map)',d:'Official city map — zoom in to see plot owners directly',  u:'https://mapa.um.warszawa.pl/mapaApp1/mapa?service=mapa_wlasnosci'},
+  {l:'Elektroniczne Księgi Wieczyste (EKW)',  d:'Land register — legal owners & mortgages',                  u:'https://ekw.ms.gov.pl/eukw_ogol/menu.do'},
+  {l:'GUNB — Building Supervision',           d:'Construction permits, occupancy certificates',              u:'https://www.gov.pl/gunb'},
+  {l:'BIP Warszawa',                          d:'Public bulletin — planning decisions',                      u:'https://www.bip.warszawa.pl/'},
 ];
 const linksHtml=LINKS.map(l=>`<div class="lrow">
   <div style="width:6px;height:6px;border-radius:50%;background:var(--ac);flex-shrink:0;margin-top:8px"></div>
@@ -191,7 +206,7 @@ function render(d,addr){
     </div>
     <div class="card">
       <div class="ctitle">Short-term rent <span class="badge ba">${st.length}</span></div>
-      <div class="csub">Nightly · Nocowanie, Airbnb, Booking.com</div>
+      <div class="csub">Nightly · Nocowanie, Airbnb, Booking.com${avgPriceLabel(st)}</div>
       ${listings(st,'ba','/night','No short-term rentals found.')}
     </div>
     ${own.length?`<div class="card">
