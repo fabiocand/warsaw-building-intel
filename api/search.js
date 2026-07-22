@@ -127,67 +127,73 @@ export default async function handler(req, res) {
     return results;
   }
 
+  // Nocowanie uses server-side rendered JSON embedded in page
   async function fetchNocowanie() {
-    const url = `https://nocowanie.pl/noclegi/warszawa/apartamenty/?search=${qStreet}`;
+    const url = `https://www.nocowanie.pl/noclegi/warszawa/apartamenty/?szukaj=${qStreet}`;
     const html = await fetchPage(url);
     if (!html) return [];
     const $ = cheerio.load(html);
     const results = [];
-    $('.accommodation-item, .offer-box, article.listing-item, .facility-item').each((i, el) => {
+    // Try multiple possible selectors
+    $('article, .ob-item, .listing-item, [class*="object-item"], [class*="ob_item"]').each((i, el) => {
       if (i >= 4) return false;
-      const title = cleanText($(el).find('h2, h3, h4, .name, .title').first().text());
-      const price = cleanText($(el).find('.price, .amount, [class*="price"]').first().text());
-      const rating = parseFloat($(el).find('[class*="rating"], [class*="score"]').first().text()) || null;
+      const title = cleanText($(el).find('h2, h3, h4, .ob-name, [class*="name"]').first().text());
+      const rawPrice = cleanText($(el).find('[class*="price"], .cena, .ob-price').first().text());
+      const priceMatch = rawPrice.match(/[\d\s]+\s*zł/);
+      const price = priceMatch ? priceMatch[0].trim() : (rawPrice.substring(0, 30) || 'Check on site');
       const href = $(el).find('a').first().attr('href');
       const imgSrc = $(el).find('img[src^="http"]').first().attr('src');
-      if (title) results.push({
-        title, size: '', rating, reviews: null,
-        price: price || 'Check on site',
+      const rating = cleanText($(el).find('[class*="rating"], [class*="score"], .nota').first().text());
+      if (title && title.length > 3) results.push({
+        title, size: '', rating: parseFloat(rating) || null, reviews: null,
+        price,
         source: 'Nocowanie',
-        url: href ? (href.startsWith('http') ? href : 'https://nocowanie.pl' + href) : url,
+        url: href ? (href.startsWith('http') ? href : 'https://www.nocowanie.pl' + href) : url,
         photos: imgSrc ? [imgSrc] : []
       });
     });
     return results;
   }
 
-  async function fetchNoclegi() {
-    const url = `https://www.noclegi.pl/szukaj/?query=${qStreet}+warszawa&rodzaj=apartament`;
+  // Noclegi-online has a static HTML structure
+  async function fetchNoclegiOnline() {
+    const url = `https://www.noclegi-online.pl/szukaj/?miasto=warszawa&typ=apartament&fraza=${qStreet}`;
     const html = await fetchPage(url);
     if (!html) return [];
     const $ = cheerio.load(html);
     const results = [];
-    $('.offer, .item, article, [class*="offer-item"], [class*="search-result"]').each((i, el) => {
-      if (i >= 3) return false;
-      const title = cleanText($(el).find('h2, h3, h4, .name').first().text());
-      const price = cleanText($(el).find('[class*="price"]').first().text());
+    $('.item, .offer, .result, article').each((i, el) => {
+      if (i >= 4) return false;
+      const title = cleanText($(el).find('h2, h3, h4, .name, .title').first().text());
+      const rawPrice = cleanText($(el).find('[class*="price"], .cena').first().text());
+      const priceMatch = rawPrice.match(/[\d\s]+\s*zł/);
+      const price = priceMatch ? priceMatch[0].trim() : (rawPrice.substring(0, 30) || 'Check on site');
       const href = $(el).find('a').first().attr('href');
       const imgSrc = $(el).find('img[src^="http"]').first().attr('src');
       if (title && title.length > 3) results.push({
         title, size: '', rating: null, reviews: null,
-        price: price || 'Check on site',
-        source: 'Noclegi.pl',
-        url: href ? (href.startsWith('http') ? href : 'https://www.noclegi.pl' + href) : url,
+        price,
+        source: 'Noclegi-online',
+        url: href ? (href.startsWith('http') ? href : 'https://www.noclegi-online.pl' + href) : url,
         photos: imgSrc ? [imgSrc] : []
       });
     });
     return results;
   }
 
-  const [otodomSale, otodomRent, olxRent, gratka, nocowanie, noclegi] = await Promise.all([
-    fetchOtodomSale(), fetchOtodomRent(), fetchOLX(), fetchGratka(), fetchNocowanie(), fetchNoclegi()
+  const [otodomSale, otodomRent, olxRent, gratka, nocowanie, noclegiOnline] = await Promise.all([
+    fetchOtodomSale(), fetchOtodomRent(), fetchOLX(), fetchGratka(),
+    fetchNocowanie(), fetchNoclegiOnline()
   ]);
 
   const addrEncoded = encodeURIComponent(address);
-  let shortTerm = [...nocowanie, ...noclegi].slice(0, 5);
+  let shortTerm = [...nocowanie, ...noclegiOnline].slice(0, 5);
 
-  if (shortTerm.length === 0) {
-    shortTerm = [
-      { title: 'Search on Booking.com', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Booking.com', url: `https://www.booking.com/searchresults.html?ss=${addrEncoded}`, photos: [] },
-      { title: 'Search on Airbnb', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Airbnb', url: `https://www.airbnb.com/s/${encodeURIComponent(streetOnly + ' Warsaw')}/homes`, photos: [] },
-      { title: 'Search on Nocowanie.pl', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Nocowanie', url: `https://nocowanie.pl/noclegi/warszawa/apartamenty/?search=${qStreet}`, photos: [] }
-    ];
-  }
+  // Always add direct search links at the end so user can check manually too
+  shortTerm.push(
+    { title: 'Search on Booking.com', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Booking.com', url: `https://www.booking.com/searchresults.html?ss=${addrEncoded}`, photos: [] },
+    { title: 'Search on Airbnb', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Airbnb', url: `https://www.airbnb.com/s/${encodeURIComponent(streetOnly + ' Warsaw')}/homes`, photos: [] }
+  );
 
   return res.status(200).json({
     building_info: {
