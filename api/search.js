@@ -12,6 +12,8 @@ export default async function handler(req, res) {
 
   const q = encodeURIComponent(address);
   const qShort = encodeURIComponent(address.replace(/ul\.|ulica\./gi, '').trim());
+  const streetOnly = address.replace(/ul\.|ulica\.|\d+[a-zA-Z]*/gi, '').replace(/,.*$/, '').trim();
+  const qStreet = encodeURIComponent(streetOnly);
 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -125,24 +127,76 @@ export default async function handler(req, res) {
     return results;
   }
 
-  const [otodomSale, otodomRent, olxRent, gratka] = await Promise.all([
-    fetchOtodomSale(), fetchOtodomRent(), fetchOLX(), fetchGratka()
+  async function fetchNocowanie() {
+    const url = `https://nocowanie.pl/noclegi/warszawa/apartamenty/?search=${qStreet}`;
+    const html = await fetchPage(url);
+    if (!html) return [];
+    const $ = cheerio.load(html);
+    const results = [];
+    $('.accommodation-item, .offer-box, article.listing-item, .facility-item').each((i, el) => {
+      if (i >= 4) return false;
+      const title = cleanText($(el).find('h2, h3, h4, .name, .title').first().text());
+      const price = cleanText($(el).find('.price, .amount, [class*="price"]').first().text());
+      const rating = parseFloat($(el).find('[class*="rating"], [class*="score"]').first().text()) || null;
+      const href = $(el).find('a').first().attr('href');
+      const imgSrc = $(el).find('img[src^="http"]').first().attr('src');
+      if (title) results.push({
+        title, size: '', rating, reviews: null,
+        price: price || 'Check on site',
+        source: 'Nocowanie',
+        url: href ? (href.startsWith('http') ? href : 'https://nocowanie.pl' + href) : url,
+        photos: imgSrc ? [imgSrc] : []
+      });
+    });
+    return results;
+  }
+
+  async function fetchNoclegi() {
+    const url = `https://www.noclegi.pl/szukaj/?query=${qStreet}+warszawa&rodzaj=apartament`;
+    const html = await fetchPage(url);
+    if (!html) return [];
+    const $ = cheerio.load(html);
+    const results = [];
+    $('.offer, .item, article, [class*="offer-item"], [class*="search-result"]').each((i, el) => {
+      if (i >= 3) return false;
+      const title = cleanText($(el).find('h2, h3, h4, .name').first().text());
+      const price = cleanText($(el).find('[class*="price"]').first().text());
+      const href = $(el).find('a').first().attr('href');
+      const imgSrc = $(el).find('img[src^="http"]').first().attr('src');
+      if (title && title.length > 3) results.push({
+        title, size: '', rating: null, reviews: null,
+        price: price || 'Check on site',
+        source: 'Noclegi.pl',
+        url: href ? (href.startsWith('http') ? href : 'https://www.noclegi.pl' + href) : url,
+        photos: imgSrc ? [imgSrc] : []
+      });
+    });
+    return results;
+  }
+
+  const [otodomSale, otodomRent, olxRent, gratka, nocowanie, noclegi] = await Promise.all([
+    fetchOtodomSale(), fetchOtodomRent(), fetchOLX(), fetchGratka(), fetchNocowanie(), fetchNoclegi()
   ]);
 
   const addrEncoded = encodeURIComponent(address);
+  let shortTerm = [...nocowanie, ...noclegi].slice(0, 5);
+
+  if (shortTerm.length === 0) {
+    shortTerm = [
+      { title: 'Search on Booking.com', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Booking.com', url: `https://www.booking.com/searchresults.html?ss=${addrEncoded}`, photos: [] },
+      { title: 'Search on Airbnb', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Airbnb', url: `https://www.airbnb.com/s/${encodeURIComponent(streetOnly + ' Warsaw')}/homes`, photos: [] },
+      { title: 'Search on Nocowanie.pl', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Nocowanie', url: `https://nocowanie.pl/noclegi/warszawa/apartamenty/?search=${qStreet}`, photos: [] }
+    ];
+  }
 
   return res.status(200).json({
     building_info: {
       district: '', year: '', floors: '', style: '', total_units: '', developer: '',
-      notes: `Live results for "${address}" from Otodom, OLX and Gratka. Short-term rental links open Booking.com and Airbnb searches. For ownership use the EKW land register below.`
+      notes: `Live results for "${address}" scraped from Otodom, OLX, Gratka and Nocowanie. For ownership details use the EKW land register link below.`
     },
     sale_listings: [...otodomSale, ...gratka].slice(0, 6),
     long_term_rentals: [...otodomRent, ...olxRent].slice(0, 6),
-    short_term_rentals: [
-      { title: 'Search apartments on Booking.com', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Booking.com', url: `https://www.booking.com/searchresults.html?ss=${addrEncoded}`, photos: [] },
-      { title: 'Search apartments on Airbnb', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Airbnb', url: `https://www.airbnb.com/s/${addrEncoded}/homes`, photos: [] },
-      { title: 'Search on Nocowanie.pl', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Nocowanie', url: `https://nocowanie.pl/szukaj/?q=${addrEncoded}`, photos: [] }
-    ],
+    short_term_rentals: shortTerm,
     ownership: []
   });
 }
