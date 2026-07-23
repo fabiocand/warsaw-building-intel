@@ -38,7 +38,6 @@ export default async function handler(req, res) {
       } catch { return null; }
     }
 
-    // Wraps every scraper so a failure in one never crashes the whole request
     async function safeScrape(fn, label) {
       try {
         return await fn();
@@ -48,6 +47,35 @@ export default async function handler(req, res) {
       }
     }
 
+    // ── OLX SALE ─────────────────────────────────────────────────
+    // OLX does not block server-side requests, unlike Otodom, so this
+    // is the primary reliable source for "for sale" listings.
+    async function fetchOLXSale() {
+      const url = `https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/warszawa/?q=${qShort}`;
+      const html = await fetchPage(url);
+      if (!html) return [];
+      const $ = cheerio.load(html);
+      const results = [];
+      $('[data-cy="l-card"]').each((i, el) => {
+        if (i >= 5) return false;
+        const title = cleanText($(el).find('h4, h6, [data-cy="ad-card-title"]').first().text());
+        const rawPrice = $(el).find('[data-testid="ad-price"]').text() || '';
+        const priceMatch = rawPrice.match(/[\d\s]+(?:zł|PLN|€|\$)/);
+        const price = priceMatch ? priceMatch[0].trim() : cleanText(rawPrice).substring(0, 25);
+        const href = $(el).find('a').first().attr('href');
+        const imgSrc = $(el).find('img[src^="http"]').first().attr('src');
+        if (title) results.push({
+          title, size: '', rooms: '', floor: '', price, source: 'OLX',
+          url: href ? (href.startsWith('http') ? href : 'https://www.olx.pl' + href) : url,
+          photos: imgSrc ? [imgSrc] : []
+        });
+      });
+      return results;
+    }
+
+    // ── OTODOM sale ──────────────────────────────────────────────
+    // Otodom actively blocks automated/bot requests, so this often
+    // returns nothing. Kept as a bonus attempt — safe to fail.
     async function fetchOtodomSale() {
       const url = `https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa?searchingCriteria=${q}&limit=6`;
       const html = await fetchPage(url);
@@ -94,7 +122,8 @@ export default async function handler(req, res) {
       return results;
     }
 
-    async function fetchOLX() {
+    // ── OLX rent ─────────────────────────────────────────────────
+    async function fetchOLXRent() {
       const url = `https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/?q=${qShort}`;
       const html = await fetchPage(url);
       if (!html) return [];
@@ -117,6 +146,7 @@ export default async function handler(req, res) {
       return results;
     }
 
+    // ── Gratka sale (best-effort bonus, may also be blocked) ──────
     async function fetchGratka() {
       const url = `https://gratka.pl/nieruchomosci/mieszkania/warszawa?phrase=${qShort}`;
       const html = await fetchPage(url);
@@ -138,6 +168,7 @@ export default async function handler(req, res) {
       return results;
     }
 
+    // ── Nocowanie short-term ──────────────────────────────────────
     async function fetchNocowanie() {
       const url = `https://www.nocowanie.pl/noclegi/warszawa/apartamenty/?szukaj=${qStreet}`;
       const html = await fetchPage(url);
@@ -171,7 +202,7 @@ export default async function handler(req, res) {
       const $ = cheerio.load(html);
       const results = [];
       $('.item, .offer, .result, article').each((i, el) => {
-        if (i >= 4) return false;
+        if (i >= 3) return false;
         const title = cleanText($(el).find('h2, h3, h4, .name').first().text());
         const rawPrice = cleanText($(el).find('[class*="price"], .cena').first().text());
         const priceMatch = rawPrice.match(/[\d\s]+\s*zł/);
@@ -189,11 +220,12 @@ export default async function handler(req, res) {
       return results;
     }
 
-    const [otodomSale, otodomRent, olxRent, gratka, nocowanie, noclegiOnline] = await Promise.all([
+    const [olxSale, otodomSale, gratka, otodomRent, olxRent, nocowanie, noclegiOnline] = await Promise.all([
+      safeScrape(fetchOLXSale, 'OLX sale'),
       safeScrape(fetchOtodomSale, 'Otodom sale'),
-      safeScrape(fetchOtodomRent, 'Otodom rent'),
-      safeScrape(fetchOLX, 'OLX'),
       safeScrape(fetchGratka, 'Gratka'),
+      safeScrape(fetchOtodomRent, 'Otodom rent'),
+      safeScrape(fetchOLXRent, 'OLX rent'),
       safeScrape(fetchNocowanie, 'Nocowanie'),
       safeScrape(fetchNoclegiOnline, 'Noclegi-online')
     ]);
@@ -209,17 +241,15 @@ export default async function handler(req, res) {
     return res.status(200).json({
       building_info: {
         district: '', year: '', floors: '', style: '', total_units: '', developer: '',
-        notes: `Live results for "${address}" scraped from Otodom, OLX, Gratka and Nocowanie. For ownership details use the EKW land register link below.`
+        notes: `Live results for "${address}" scraped from OLX, Otodom (when accessible), Gratka and Nocowanie. For ownership details use the EKW land register link below.`
       },
-      sale_listings: [...otodomSale, ...gratka].slice(0, 6),
+      sale_listings: [...olxSale, ...otodomSale, ...gratka].slice(0, 6),
       long_term_rentals: [...otodomRent, ...olxRent].slice(0, 6),
       short_term_rentals: shortTerm,
       ownership: []
     });
 
   } catch (err) {
-    // Last-resort catch — guarantees the frontend always gets valid JSON,
-    // never a raw Vercel error page that can't be parsed.
     console.error('Handler crashed:', err);
     return res.status(500).json({ error: 'Search temporarily failed: ' + (err && err.message ? err.message : 'unknown server error') });
   }
