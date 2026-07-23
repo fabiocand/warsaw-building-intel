@@ -11,26 +11,35 @@ export default async function handler(req, res) {
     const { address } = req.body || {};
     if (!address) return res.status(400).json({ error: 'Address required' });
 
-    // ── Build a proper OLX search slug ────────────────────────────
-    // OLX does NOT support "?q=" as a query string. It requires the
-    // search term embedded in the URL path as "q-{slug}/", e.g.:
-    //   https://www.olx.pl/nieruchomosci/mieszkania/warszawa/q-mieszkanie-na-sprzedaz/
-    // Passing it as "?q=" was silently ignored, so OLX was serving its
-    // default unfiltered Warsaw listing page every time. This builds
-    // the correct path-style slug instead.
-    function toOlxSlug(addr) {
-      const s = addr
+    // ── Extract the street name only, dropping the house number ────
+    // Real estate classifieds (OLX, Otodom, Gratka) don't index ads by
+    // exact building number — sellers describe location by street or
+    // neighborhood, never "at number 45a" specifically. Searching for
+    // "street-name-45a" as a literal phrase matches ~0 ads, so the site
+    // falls back to generic/similar results instead of a blank page —
+    // which looked like "irrelevant listings everywhere". Searching by
+    // street name only gives genuine, relevant matches, at street-level
+    // precision (the best granularity these platforms actually support).
+    function extractStreetName(addr) {
+      return addr
         .replace(/ul\.|ulica\./gi, '')
         .replace(/,.*$/, '')
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '-');
+        .replace(/\s+\d+[a-zA-Z]*\s*$/, '')
+        .trim();
+    }
+
+    const streetOnly = extractStreetName(address);
+    const qShort = encodeURIComponent(streetOnly);
+
+    // OLX requires the search term embedded in the URL path as
+    // "q-{slug}/" (not a "?q=" query string), e.g.:
+    //   https://www.olx.pl/nieruchomosci/mieszkania/warszawa/q-mieszkanie-na-sprzedaz/
+    function toOlxSlug(text) {
+      const s = text.toLowerCase().replace(/\s+/g, '-');
       return encodeURIComponent(s);
     }
 
-    const qShort = encodeURIComponent(address.replace(/ul\.|ulica\./gi, '').trim());
-    const streetOnly = address.replace(/ul\.|ulica\.|\d+[a-zA-Z]*/gi, '').replace(/,.*$/, '').trim();
-    const olxSlug = toOlxSlug(address);
+    const olxSlug = toOlxSlug(streetOnly);
 
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -207,7 +216,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       building_info: {
         district: '', year: '', floors: '', style: '', total_units: '', developer: '',
-        notes: `Live results for "${address}" — sale and rent listings filtered via OLX's search. Otodom and Gratka included as bonus sources when accessible. Short-term rentals are search links since those sites can't be reliably filtered by exact address server-side.`
+        notes: `Results for ul. ${streetOnly} (street-level, not exact building) — real estate classifieds index listings by street/neighbourhood, not house number, so this is the closest precision they support. Sale/rent listings come from OLX; Otodom and Gratka are included as bonus sources when accessible. Short-term rentals are search links since those sites can't be reliably filtered by address server-side.`
       },
       sale_listings: [...olxSale, ...otodomSale, ...gratka].slice(0, 6),
       long_term_rentals: [...olxRent, ...otodomRent].slice(0, 6),
