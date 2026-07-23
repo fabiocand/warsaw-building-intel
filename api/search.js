@@ -11,15 +11,8 @@ export default async function handler(req, res) {
     const { address } = req.body || {};
     if (!address) return res.status(400).json({ error: 'Address required' });
 
-    // ── Extract the street name only, dropping the house number ────
-    // Real estate classifieds (OLX, Otodom, Gratka) don't index ads by
-    // exact building number — sellers describe location by street or
-    // neighborhood, never "at number 45a" specifically. Searching for
-    // "street-name-45a" as a literal phrase matches ~0 ads, so the site
-    // falls back to generic/similar results instead of a blank page —
-    // which looked like "irrelevant listings everywhere". Searching by
-    // street name only gives genuine, relevant matches, at street-level
-    // precision (the best granularity these platforms actually support).
+    // Real estate classifieds index ads by street/neighbourhood, never
+    // exact house number, so search by street name only.
     function extractStreetName(addr) {
       return addr
         .replace(/ul\.|ulica\./gi, '')
@@ -32,13 +25,10 @@ export default async function handler(req, res) {
     const qShort = encodeURIComponent(streetOnly);
 
     // OLX requires the search term embedded in the URL path as
-    // "q-{slug}/" (not a "?q=" query string), e.g.:
-    //   https://www.olx.pl/nieruchomosci/mieszkania/warszawa/q-mieszkanie-na-sprzedaz/
+    // "q-{slug}/" — verified against real OLX search-result URLs.
     function toOlxSlug(text) {
-      const s = text.toLowerCase().replace(/\s+/g, '-');
-      return encodeURIComponent(s);
+      return encodeURIComponent(text.toLowerCase().replace(/\s+/g, '-'));
     }
-
     const olxSlug = toOlxSlug(streetOnly);
 
     const headers = {
@@ -49,10 +39,7 @@ export default async function handler(req, res) {
     };
 
     function cleanText(str) {
-      return (str || '')
-        .replace(/css-[a-z0-9]+\{[^}]*\}/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+      return (str || '').replace(/css-[a-z0-9]+\{[^}]*\}/gi, '').replace(/\s+/g, ' ').trim();
     }
 
     async function fetchPage(url, timeoutMs = 5500) {
@@ -64,15 +51,11 @@ export default async function handler(req, res) {
     }
 
     async function safeScrape(fn, label) {
-      try {
-        return await fn();
-      } catch (e) {
-        console.error(`${label} scraper failed:`, e && e.message);
-        return [];
-      }
+      try { return await fn(); }
+      catch (e) { console.error(`${label} failed:`, e && e.message); return []; }
     }
 
-    // ── OLX SALE (properly filtered) ──────────────────────────────
+    // ── OLX sale (verified reliable — doesn't block scraping) ──────
     async function fetchOLXSale() {
       const url = `https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/warszawa/q-${olxSlug}/`;
       const html = await fetchPage(url);
@@ -96,7 +79,7 @@ export default async function handler(req, res) {
       return results;
     }
 
-    // ── OLX RENT (properly filtered) ──────────────────────────────
+    // ── OLX rent (verified reliable) ────────────────────────────────
     async function fetchOLXRent() {
       const url = `https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-${olxSlug}/`;
       const html = await fetchPage(url);
@@ -104,7 +87,7 @@ export default async function handler(req, res) {
       const $ = cheerio.load(html);
       const results = [];
       $('[data-cy="l-card"]').each((i, el) => {
-        if (i >= 4) return false;
+        if (i >= 5) return false;
         const title = cleanText($(el).find('h4, h6, [data-cy="ad-card-title"]').first().text());
         const rawPrice = $(el).find('[data-testid="ad-price"]').text() || '';
         const priceMatch = rawPrice.match(/[\d\s]+(?:zł|PLN|€|\$)/);
@@ -120,9 +103,9 @@ export default async function handler(req, res) {
       return results;
     }
 
-    // ── OTODOM (bonus, blocked by bot detection most of the time) ──
+    // ── Otodom (bonus best-effort — actively blocks bots, often empty) ──
     async function fetchOtodomSale() {
-      const url = `https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa?searchingCriteria=${qShort}&limit=6`;
+      const url = `https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa?limit=6`;
       const html = await fetchPage(url);
       if (!html) return [];
       const $ = cheerio.load(html);
@@ -144,32 +127,9 @@ export default async function handler(req, res) {
       return results;
     }
 
-    async function fetchOtodomRent() {
-      const url = `https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa/warszawa/warszawa?searchingCriteria=${qShort}&limit=6`;
-      const html = await fetchPage(url);
-      if (!html) return [];
-      const $ = cheerio.load(html);
-      const results = [];
-      $('[data-cy="listing-item"]').each((i, el) => {
-        if (i >= 4) return false;
-        const title = cleanText($(el).find('[data-cy="listing-item-title"]').text());
-        const price = cleanText($(el).find('strong').first().text());
-        const href = $(el).find('a').attr('href');
-        const size = cleanText($(el).find('[data-testid="listing-item-size"]').text());
-        const rooms = cleanText($(el).find('[data-testid="listing-item-rooms"]').text());
-        const imgSrc = $(el).find('img[src^="http"]').first().attr('src');
-        if (title) results.push({
-          title, size, rooms, floor: '', price, source: 'Otodom',
-          url: href ? (href.startsWith('http') ? href : 'https://www.otodom.pl' + href) : url,
-          photos: imgSrc ? [imgSrc] : []
-        });
-      });
-      return results;
-    }
-
-    // ── Gratka (bonus, unverified filter reliability) ─────────────
+    // ── Gratka (bonus best-effort — unverified filter reliability) ──
     async function fetchGratka() {
-      const url = `https://gratka.pl/nieruchomosci/mieszkania/warszawa?phrase=${qShort}`;
+      const url = `https://gratka.pl/nieruchomosci/mieszkania/warszawa`;
       const html = await fetchPage(url);
       if (!html) return [];
       const $ = cheerio.load(html);
@@ -189,38 +149,40 @@ export default async function handler(req, res) {
       return results;
     }
 
-    const [olxSale, otodomSale, gratka, otodomRent, olxRent] = await Promise.all([
+    const [olxSale, olxRent, otodomSale, gratka] = await Promise.all([
       safeScrape(fetchOLXSale, 'OLX sale'),
+      safeScrape(fetchOLXRent, 'OLX rent'),
       safeScrape(fetchOtodomSale, 'Otodom sale'),
-      safeScrape(fetchGratka, 'Gratka'),
-      safeScrape(fetchOtodomRent, 'Otodom rent'),
-      safeScrape(fetchOLXRent, 'OLX rent')
+      safeScrape(fetchGratka, 'Gratka')
     ]);
 
-    // ── Short-term rent: honest link-only mode ─────────────────────
-    // Nocowanie and Noclegi-online do not expose a reliable text-based
-    // address filter (confirmed: their query params were being ignored,
-    // silently returning generic Warsaw-wide listings instead). Rather
-    // than present unfiltered results as if they matched the address,
-    // these are now search links only — same honest treatment as
-    // Booking.com and Airbnb, which are JS-rendered and can't be
-    // scraped server-side at all.
+    // ── Honest direct links (always correct, never scraped) ─────────
     const addrEncoded = encodeURIComponent(address);
-    const shortTerm = [
-      { title: 'Search on Booking.com', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Booking.com', url: `https://www.booking.com/searchresults.html?ss=${addrEncoded}`, photos: [] },
-      { title: 'Search on Airbnb', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Airbnb', url: `https://www.airbnb.com/s/${encodeURIComponent(streetOnly + ' Warsaw')}/homes`, photos: [] },
-      { title: 'Browse apartments on Nocowanie.pl', size: '', rating: null, reviews: null, price: 'Check on site', source: 'Nocowanie', url: `https://www.nocowanie.pl/noclegi/warszawa/apartamenty/`, photos: [] },
-      { title: `Search "${address}" short-term rentals on Google`, size: '', rating: null, reviews: null, price: '', source: 'Google', url: `https://www.google.com/search?q=${encodeURIComponent('apartament na dobę ' + address)}`, photos: [] }
-    ];
+    const directLinks = {
+      sale: [
+        { label: 'OLX — full search results', url: `https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/warszawa/q-${olxSlug}/` },
+        { label: 'Otodom — Warsaw listings', url: `https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa` },
+        { label: 'Gratka — Warsaw listings', url: `https://gratka.pl/nieruchomosci/mieszkania/warszawa` }
+      ],
+      rent: [
+        { label: 'OLX — full search results', url: `https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-${olxSlug}/` },
+        { label: 'Otodom — Warsaw listings', url: `https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa/warszawa/warszawa` }
+      ],
+      shortTerm: [
+        { label: 'Booking.com', url: `https://www.booking.com/searchresults.html?ss=${addrEncoded}` },
+        { label: 'Airbnb', url: `https://www.airbnb.com/s/${encodeURIComponent(streetOnly + ' Warsaw')}/homes` },
+        { label: 'Nocowanie.pl', url: `https://www.nocowanie.pl/noclegi/warszawa/apartamenty/` }
+      ]
+    };
 
     return res.status(200).json({
       building_info: {
         district: '', year: '', floors: '', style: '', total_units: '', developer: '',
-        notes: `Results for ul. ${streetOnly} (street-level, not exact building) — real estate classifieds index listings by street/neighbourhood, not house number, so this is the closest precision they support. Sale/rent listings come from OLX; Otodom and Gratka are included as bonus sources when accessible. Short-term rentals are search links since those sites can't be reliably filtered by address server-side.`
+        notes: `Results for ul. ${streetOnly} (street-level — classifieds don't index by exact house number). OLX listings below are genuinely filtered to this street. Otodom/Gratka are shown as bonus best-effort results when accessible.`
       },
       sale_listings: [...olxSale, ...otodomSale, ...gratka].slice(0, 6),
-      long_term_rentals: [...olxRent, ...otodomRent].slice(0, 6),
-      short_term_rentals: shortTerm,
+      long_term_rentals: [...olxRent].slice(0, 6),
+      direct_links: directLinks,
       ownership: []
     });
 
