@@ -28,6 +28,7 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
 .srow input:focus{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-bg)}
 .sbtn{height:44px;padding:0 20px;background:var(--ac);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap}
 .sbtn:hover{opacity:.88}
+.sbtn:disabled{opacity:.5;cursor:default}
 .hints{font-size:12px;color:var(--t3);margin-top:8px}
 .hints span{color:var(--ac);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .card{background:var(--s1);border:.5px solid var(--bd);border-radius:var(--rl);padding:1.25rem;margin-bottom:1rem}
@@ -38,24 +39,43 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
 .bg{background:var(--gr-bg);color:var(--gr);border:.5px solid var(--gr-b)}
 .ba{background:var(--am-bg);color:var(--am);border:.5px solid var(--am-b)}
 .bgr{background:var(--s2);color:var(--t2);border:.5px solid var(--bds)}
-.link{display:flex;align-items:center;justify-content:space-between;gap:12px;border:.5px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;background:var(--s2);text-decoration:none;color:var(--t);transition:border-color .15s}
+.listing{border:.5px solid var(--bd);border-radius:var(--r);padding:12px;margin-bottom:8px;background:var(--s2)}
+.listing:last-child{margin-bottom:0}
+.ltop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.ltitle{font-size:14px;font-weight:500}
+.lmeta{font-size:12px;color:var(--t2);margin-top:3px}
+.lprice{font-size:15px;font-weight:500;margin-top:6px}
+.llink{font-size:12px;color:var(--ac);margin-top:4px;text-decoration:none;display:inline-block}
+.llink:hover{text-decoration:underline}
+.pstrip{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:2px;scrollbar-width:thin}
+.pstrip img{width:110px;height:74px;border-radius:6px;object-fit:cover;flex-shrink:0;cursor:pointer;border:.5px solid var(--bd)}
+.link{display:flex;align-items:center;justify-content:space-between;gap:12px;border:.5px solid var(--bd);border-radius:var(--r);padding:10px 14px;margin-bottom:6px;background:var(--s2);text-decoration:none;color:var(--t)}
 .link:last-child{margin-bottom:0}
 .link:hover{border-color:var(--bds)}
-.link-main{flex:1;min-width:0}
-.link-title{font-size:14px;font-weight:500}
-.link-desc{font-size:12px;color:var(--t3);margin-top:2px}
-.link-arrow{font-size:16px;color:var(--t3);flex-shrink:0}
-.filtered{color:var(--gr)}
+.link-title{font-size:13px;font-weight:500}
+.link-arrow{font-size:14px;color:var(--t3)}
+.more-label{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:.75rem 0 .5rem}
+.empty{font-size:13px;color:var(--t3);padding:8px 0}
+.loading{display:flex;align-items:center;gap:12px;padding:2rem 1.25rem;color:var(--t2);font-size:14px}
+.spin{width:18px;height:18px;border:2px solid var(--bds);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
 .notice{font-size:12px;color:var(--t3);background:var(--s2);border:.5px solid var(--bd);border-radius:var(--r);padding:10px 14px;margin-top:1rem;line-height:1.5}
 .empty-state{text-align:center;padding:3rem 1rem;color:var(--t3);font-size:14px}
-@media(max-width:520px){.link{flex-direction:row}}
+.lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.lb.open{display:flex}
+.lb img{max-width:90vw;max-height:72vh;border-radius:10px;object-fit:contain}
+.lbnav{display:flex;align-items:center;gap:20px}
+.lbbtn{background:rgba(255,255,255,.12);border:none;color:#fff;font-size:28px;cursor:pointer;border-radius:50%;width:46px;height:46px;display:flex;align-items:center;justify-content:center}
+.lbx{position:absolute;top:18px;right:22px;background:none;border:none;color:rgba(255,255,255,.7);font-size:28px;cursor:pointer}
+.lbc{color:rgba(255,255,255,.5);font-size:13px;min-width:54px;text-align:center}
+@media(max-width:520px){.igrid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hdr">
     <h1>Warsaw Building Intelligence</h1>
-    <p>Type an address to get correctly pre-filled search links across every major source — for sale, long-term rent, short-term rent, and official city records.</p>
+    <p>Search a Warsaw address for live listings where available, plus correct search links everywhere else — sale, rent, short-term stays, and official city records.</p>
   </div>
 
   <div class="sbox">
@@ -80,32 +100,54 @@ body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSyste
   </div>
 </div>
 
+<div class="lb" id="lb">
+  <button class="lbx" onclick="closeLb()">✕</button>
+  <img id="lbImg" src="" alt="photo" />
+  <div class="lbnav">
+    <button class="lbbtn" onclick="navLb(-1)">‹</button>
+    <span class="lbc" id="lbCount"></span>
+    <button class="lbbtn" onclick="navLb(1)">›</button>
+  </div>
+</div>
+
 <script>
 document.getElementById('addr').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
 function qs(a){ document.getElementById('addr').value = a; go(); }
 
-function extractStreetName(addr){
-  return addr
-    .replace(/ul\.|ulica\./gi, '')
-    .replace(/,.*$/, '')
-    .replace(/\s+\d+[a-zA-Z]*\s*$/, '')
-    .trim();
+let lbP=[], lbI=0;
+function openLb(photos, idx){ lbP=photos; lbI=idx; document.getElementById('lbImg').src=photos[idx]; document.getElementById('lbCount').textContent=(idx+1)+' / '+photos.length; document.getElementById('lb').classList.add('open'); }
+function closeLb(){ document.getElementById('lb').classList.remove('open'); }
+function navLb(d){ lbI=(lbI+d+lbP.length)%lbP.length; document.getElementById('lbImg').src=lbP[lbI]; document.getElementById('lbCount').textContent=(lbI+1)+' / '+lbP.length; }
+document.getElementById('lb').addEventListener('click', e => { if (e.target === document.getElementById('lb')) closeLb(); });
+
+function thumbs(photos){
+  if(!photos||!photos.length) return '';
+  const safe = JSON.stringify(photos).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return '<div class="pstrip">'+photos.map((p,i)=>`<img src="${p}" loading="lazy" alt="" onclick="openLb(JSON.parse('${safe}'),${i})" onerror="this.style.display='none'">`).join('')+'</div>';
 }
 
-// OLX genuinely supports this exact path format for filtered search —
-// verified against real OLX search-result URLs.
-function toOlxSlug(text){
-  return encodeURIComponent(text.toLowerCase().replace(/\s+/g, '-'));
-}
-
-function linkRow(url, title, desc, badge, badgeClass, filtered){
-  return `<a class="link" href="${url}" target="_blank" rel="noopener">
-    <div class="link-main">
-      <div class="link-title">${title} ${filtered ? '<span class="filtered">· filtered to this street</span>' : ''}</div>
-      <div class="link-desc">${desc}</div>
+function listingsHtml(items, badgeClass, emptyText){
+  if (!items || !items.length) return `<div class="empty">${emptyText}</div>`;
+  return items.map(x => `<div class="listing">
+    <div class="ltop">
+      <div style="flex:1;min-width:0">
+        <div class="ltitle">${x.title||'—'}</div>
+        <div class="lmeta">${[x.size,x.rooms,x.floor].filter(Boolean).join(' · ')}</div>
+        <div class="lprice">${x.price||''}</div>
+        ${x.url?`<a class="llink" href="${x.url}" target="_blank" rel="noopener">${x.source} ↗</a>`:''}
+      </div>
+      <span class="badge ${badgeClass}">${x.source||''}</span>
     </div>
-    <span class="badge ${badgeClass}">${badge}</span>
-  </a>`;
+    ${thumbs(x.photos)}
+  </div>`).join('');
+}
+
+function directLinksHtml(links){
+  if (!links || !links.length) return '';
+  return links.map(l => `<a class="link" href="${l.url}" target="_blank" rel="noopener">
+    <span class="link-title">${l.label}</span>
+    <span class="link-arrow">↗</span>
+  </a>`).join('');
 }
 
 const OFFICIAL_LINKS = [
@@ -118,83 +160,47 @@ const OFFICIAL_LINKS = [
 
 function officialLinksHtml(){
   return OFFICIAL_LINKS.map(l => `<a class="link" href="${l.u}" target="_blank" rel="noopener">
-    <div class="link-main">
+    <div>
       <div class="link-title">${l.l}</div>
-      <div class="link-desc">${l.d}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:1px">${l.d}</div>
     </div>
     <span class="link-arrow">↗</span>
   </a>`).join('');
 }
 
-function go(){
-  const addr = document.getElementById('addr').value.trim();
-  if (!addr) return;
+function extractStreetName(addr){
+  return addr.replace(/ul\.|ulica\./gi, '').replace(/,.*$/, '').replace(/\s+\d+[a-zA-Z]*\s*$/, '').trim();
+}
 
-  const street = extractStreetName(addr);
-  const olxSlug = toOlxSlug(street);
-  const addrEncoded = encodeURIComponent(addr);
-  const streetEncoded = encodeURIComponent(street);
-
-  const saleLinks = [
-    linkRow(
-      `https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/warszawa/q-${olxSlug}/`,
-      'OLX', `Apartments for sale matching "${street}"`, 'OLX', 'bb', true
-    ),
-    linkRow(
-      `https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa`,
-      'Otodom', `Opens Warsaw listings — search "${street}" in Otodom's own search box`, 'Otodom', 'bb', false
-    ),
-    linkRow(
-      `https://gratka.pl/nieruchomosci/mieszkania/warszawa`,
-      'Gratka', `Opens Warsaw listings — search "${street}" in Gratka's own search box`, 'Gratka', 'bb', false
-    ),
-  ];
-
-  const rentLinks = [
-    linkRow(
-      `https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-${olxSlug}/`,
-      'OLX', `Apartments for rent matching "${street}"`, 'OLX', 'bg', true
-    ),
-    linkRow(
-      `https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa/warszawa/warszawa`,
-      'Otodom', `Opens Warsaw listings — search "${street}" in Otodom's own search box`, 'Otodom', 'bg', false
-    ),
-  ];
-
-  const shortTermLinks = [
-    linkRow(
-      `https://www.booking.com/searchresults.html?ss=${addrEncoded}`,
-      'Booking.com', 'Pre-filled search for this address', 'Booking.com', 'ba', false
-    ),
-    linkRow(
-      `https://www.airbnb.com/s/${encodeURIComponent(street + ' Warsaw')}/homes`,
-      'Airbnb', 'Pre-filled search for this street', 'Airbnb', 'ba', false
-    ),
-    linkRow(
-      `https://www.nocowanie.pl/noclegi/warszawa/apartamenty/`,
-      'Nocowanie.pl', `Opens Warsaw apartments — search "${street}" once there`, 'Nocowanie', 'ba', false
-    ),
-  ];
+function renderCombined(data, addr){
+  const sale = data.sale_listings || [];
+  const rent = data.long_term_rentals || [];
+  const dl = data.direct_links || {};
+  const b = data.building_info || {};
 
   document.getElementById('out').innerHTML = `
     <div style="font-size:16px;font-weight:500;margin-bottom:1rem">${addr}</div>
 
     <div class="card">
-      <div class="ctitle">For sale</div>
-      <div class="csub">OLX link is genuinely filtered to this street. Otodom and Gratka open their Warsaw results — type the street once there.</div>
-      ${saleLinks.join('')}
+      <div class="ctitle">For sale <span class="badge bb">${sale.length}</span></div>
+      <div class="csub">${b.notes || ''}</div>
+      ${listingsHtml(sale, 'bb', 'No listings found in this attempt — use the links below to browse directly.')}
+      <div class="more-label">Browse more</div>
+      ${directLinksHtml(dl.sale)}
     </div>
 
     <div class="card">
-      <div class="ctitle">Long-term rent</div>
+      <div class="ctitle">Long-term rent <span class="badge bg">${rent.length}</span></div>
       <div class="csub">Monthly leases</div>
-      ${rentLinks.join('')}
+      ${listingsHtml(rent, 'bg', 'No listings found in this attempt — use the links below to browse directly.')}
+      <div class="more-label">Browse more</div>
+      ${directLinksHtml(dl.rent)}
     </div>
 
     <div class="card">
       <div class="ctitle">Short-term rent</div>
-      <div class="csub">Nightly stays — Booking and Airbnb links are pre-filled and should show real results</div>
-      ${shortTermLinks.join('')}
+      <div class="csub">Nightly stays — pre-filled search links</div>
+      ${directLinksHtml(dl.shortTerm)}
     </div>
 
     <div class="card">
@@ -203,10 +209,78 @@ function go(){
       ${officialLinksHtml()}
     </div>
 
-    <div class="notice">
-      This site builds correct search links rather than scraping listings directly — real estate sites actively block automated scraping, which was producing inaccurate results. Every link here goes to a real page; OLX links are genuinely pre-filtered by street, others open the site's own search for you to finish.
-    </div>
+    <div class="notice">OLX listings above are genuinely filtered to this street. Otodom/Gratka appear when accessible (they actively block some automated requests) — their direct links always work as a manual fallback.</div>
   `;
+}
+
+function renderLinksOnly(addr, reason){
+  const street = extractStreetName(addr);
+  const olxSlug = encodeURIComponent(street.toLowerCase().replace(/\s+/g, '-'));
+  const addrEncoded = encodeURIComponent(addr);
+
+  const saleLinks = [
+    { label: 'OLX — search this street', url: `https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/warszawa/q-${olxSlug}/` },
+    { label: 'Otodom — Warsaw listings', url: `https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa` },
+    { label: 'Gratka — Warsaw listings', url: `https://gratka.pl/nieruchomosci/mieszkania/warszawa` }
+  ];
+  const rentLinks = [
+    { label: 'OLX — search this street', url: `https://www.olx.pl/nieruchomosci/mieszkania/wynajem/warszawa/q-${olxSlug}/` },
+    { label: 'Otodom — Warsaw listings', url: `https://www.otodom.pl/pl/wyniki/wynajem/mieszkanie/mazowieckie/warszawa/warszawa/warszawa` }
+  ];
+  const shortTermLinks = [
+    { label: 'Booking.com', url: `https://www.booking.com/searchresults.html?ss=${addrEncoded}` },
+    { label: 'Airbnb', url: `https://www.airbnb.com/s/${encodeURIComponent(street + ' Warsaw')}/homes` },
+    { label: 'Nocowanie.pl', url: `https://www.nocowanie.pl/noclegi/warszawa/apartamenty/` }
+  ];
+
+  document.getElementById('out').innerHTML = `
+    <div style="font-size:16px;font-weight:500;margin-bottom:1rem">${addr}</div>
+
+    <div class="card">
+      <div class="ctitle">For sale</div>
+      ${directLinksHtml(saleLinks)}
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Long-term rent</div>
+      ${directLinksHtml(rentLinks)}
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Short-term rent</div>
+      ${directLinksHtml(shortTermLinks)}
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Official Warsaw sources</div>
+      ${officialLinksHtml()}
+    </div>
+
+    <div class="notice">Live results are temporarily unavailable${reason ? ' (' + reason + ')' : ''}, so these are direct search links instead — click through to browse.</div>
+  `;
+}
+
+async function go(){
+  const addr = document.getElementById('addr').value.trim();
+  if (!addr) return;
+  const btn = document.getElementById('sbtn');
+  btn.disabled = true;
+  document.getElementById('out').innerHTML = `<div class="loading"><div class="spin"></div>Searching listings for <strong style="margin-left:4px">${addr}</strong>…</div>`;
+
+  try {
+    const r = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: addr })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Search failed');
+    renderCombined(data, addr);
+  } catch (e) {
+    renderLinksOnly(addr, e.message);
+  } finally {
+    btn.disabled = false;
+  }
 }
 </script>
 </body>
